@@ -175,3 +175,192 @@ WebSocket
   }
 }
 ```
+# Stage 2
+
+## Database Selection
+
+I would use PostgreSQL as the primary database for this notification platform.
+
+The system requires:
+
+* Storing notification records
+* Tracking read/unread status per student
+* Filtering notifications by type
+* Pagination
+* Ordering notifications by creation time
+
+These operations are relational in nature and can be handled efficiently using PostgreSQL with proper indexing.
+
+---
+
+## Database Schema
+
+### Students
+
+```sql
+CREATE TABLE students (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Notifications
+
+```sql
+CREATE TABLE notifications (
+    id UUID PRIMARY KEY,
+    type VARCHAR(50) NOT NULL,
+    title VARCHAR(255) NOT NULL,
+    message TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### Notification Recipients
+
+```sql
+CREATE TABLE notification_recipients (
+    id BIGSERIAL PRIMARY KEY,
+    student_id BIGINT REFERENCES students(id),
+    notification_id UUID REFERENCES notifications(id),
+    is_read BOOLEAN DEFAULT FALSE,
+    read_at TIMESTAMP NULL
+);
+```
+
+---
+
+## Database Design Explanation
+
+A single notification may be sent to thousands of students.
+
+Instead of storing duplicate notification content for every student, notification information is stored once in the notifications table.
+
+The notification_recipients table maintains the mapping between students and notifications along with read status.
+
+This reduces storage usage and improves maintainability.
+
+---
+
+## Potential Challenges as Data Grows
+
+As the platform scales to tens of thousands of students and millions of notifications, several issues may arise:
+
+1. Slower query performance.
+2. Increased database storage requirements.
+3. Longer response times for notification retrieval.
+4. High load caused by frequent read operations.
+5. Increased indexing overhead.
+
+---
+
+## Proposed Solutions
+
+### Database Indexing
+
+Create indexes on frequently queried columns.
+
+```sql
+CREATE INDEX idx_notification_created_at
+ON notifications(created_at DESC);
+
+CREATE INDEX idx_student_notification_student
+ON notification_recipients(student_id);
+
+CREATE INDEX idx_student_notification_read
+ON notification_recipients(is_read);
+```
+
+### Pagination
+
+Notifications should always be retrieved in pages instead of loading complete datasets.
+
+### Archival Strategy
+
+Old notifications can be moved to archive tables after a defined retention period.
+
+### Read Replicas
+
+Read replicas can be introduced to distribute read-heavy traffic.
+
+### Caching
+
+Frequently requested data such as unread counts can be cached to reduce database load.
+
+---
+
+## SQL Queries
+
+### Create Notification
+
+```sql
+INSERT INTO notifications (
+    id,
+    type,
+    title,
+    message
+)
+VALUES (
+    $1,
+    $2,
+    $3,
+    $4
+);
+```
+
+### Assign Notification To Students
+
+```sql
+INSERT INTO notification_recipients (
+    student_id,
+    notification_id
+)
+VALUES (
+    $1,
+    $2
+);
+```
+
+### Fetch Notifications For A Student
+
+```sql
+SELECT n.*
+FROM notifications n
+JOIN notification_recipients nr
+ON n.id = nr.notification_id
+WHERE nr.student_id = $1
+ORDER BY n.created_at DESC
+LIMIT 20 OFFSET 0;
+```
+
+### Fetch Unread Notifications
+
+```sql
+SELECT n.*
+FROM notifications n
+JOIN notification_recipients nr
+ON n.id = nr.notification_id
+WHERE nr.student_id = $1
+AND nr.is_read = FALSE
+ORDER BY n.created_at DESC;
+```
+
+### Mark Notification As Read
+
+```sql
+UPDATE notification_recipients
+SET is_read = TRUE,
+    read_at = NOW()
+WHERE student_id = $1
+AND notification_id = $2;
+```
+
+### Delete Notification Mapping
+
+```sql
+DELETE FROM notification_recipients
+WHERE student_id = $1
+AND notification_id = $2;
+```
