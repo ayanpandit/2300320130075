@@ -364,3 +364,129 @@ DELETE FROM notification_recipients
 WHERE student_id = $1
 AND notification_id = $2;
 ```
+# Stage 3
+
+## Optimizing Notification Retrieval at Scale
+
+Assume the platform has:
+
+* 100,000 registered users
+* 1,000,000 notifications
+
+At this scale, fetching notifications efficiently becomes important to maintain low response times and a good user experience.
+
+---
+
+## 1. Database Indexing
+
+Indexes should be created on columns that are frequently used for filtering, sorting, and joining.
+
+### Index on Student ID
+
+```sql
+CREATE INDEX idx_recipients_student
+ON notification_recipients(student_id);
+```
+
+This improves retrieval of notifications belonging to a specific student.
+
+### Index on Read Status
+
+```sql
+CREATE INDEX idx_recipients_read
+ON notification_recipients(is_read);
+```
+
+This helps when fetching unread notifications.
+
+### Index on Notification Creation Time
+
+```sql
+CREATE INDEX idx_notifications_created
+ON notifications(created_at DESC);
+```
+
+This improves sorting notifications by latest first.
+
+---
+
+## 2. Query Optimization
+
+Instead of loading all notifications and filtering them in application code, filtering should be performed directly by the database.
+
+Optimized query:
+
+```sql
+SELECT n.id,
+       n.type,
+       n.title,
+       n.message,
+       n.created_at,
+       nr.is_read
+FROM notifications n
+JOIN notification_recipients nr
+ON n.id = nr.notification_id
+WHERE nr.student_id = $1
+ORDER BY n.created_at DESC
+LIMIT 20 OFFSET 0;
+```
+
+Benefits:
+
+* Reduced data transfer
+* Faster execution
+* Lower memory consumption
+* Better scalability
+
+---
+
+## 3. Pagination Strategy
+
+Loading thousands of notifications in a single request is inefficient.
+
+Pagination should be implemented.
+
+Example:
+
+```http
+GET /api/v1/notifications?page=1&limit=20
+```
+
+Query calculation:
+
+```text
+offset = (page - 1) * limit
+```
+
+Example:
+
+```sql
+SELECT *
+FROM notifications
+ORDER BY created_at DESC
+LIMIT 20 OFFSET 40;
+```
+
+This returns records for page 3 when limit is 20.
+
+---
+
+## Additional Improvements
+
+### Caching
+
+Unread notification counts can be cached to reduce repeated database queries.
+
+### Archiving
+
+Old notifications can be moved to archive storage after a defined retention period.
+
+### Read Replicas
+
+Read-heavy operations can be served through database replicas while writes continue to use the primary database.
+
+---
+
+## Expected Outcome
+
+Using indexing, optimized queries, and pagination, the platform can efficiently serve notification data even when handling millions of records and a large number of concurrent users.
