@@ -661,3 +661,20 @@ The system should monitor:
 ### Conclusion
 
 Using a queue-based architecture improves reliability and allows the platform to handle large-scale notification delivery efficiently.
+
+
+# Stage 6
+
+Priority is calculated using a weighted scoring system.
+
+Weights:
+
+- Placement = 3
+- Result = 2
+- Event = 1
+
+For notifications having the same type, the most recent notification receives higher priority.
+
+The algorithm fetches notifications from the provided API, calculates a score based on weight and timestamp, sorts notifications in descending order, and returns the top N notifications.
+
+For future scalability, a min-heap of size N can be maintained so that incoming notifications can be processed efficiently without sorting the entire dataset repeatedly.
