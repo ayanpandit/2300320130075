@@ -598,3 +598,66 @@ This ensures that users always see the latest information.
 ## Conclusion
 
 Using Redis for caching notification-related data can significantly improve application performance while reducing pressure on the primary database.
+
+# Stage 5
+
+## Reliable Bulk Notification Delivery
+
+The platform must support sending notifications to a large number of students without losing messages and without overloading the system.
+
+### Proposed Architecture
+
+```text
+Admin
+  |
+  v
+Notification Service
+  |
+  v
+Message Queue
+  |
+  v
+Worker Services
+  |
+  v
+Database + Notification Delivery
+```
+
+### Message Queue
+
+A message queue such as RabbitMQ or Apache Kafka can be introduced between the notification service and worker services.
+
+Instead of sending notifications directly to thousands of students, notification requests are placed into the queue.
+
+Workers consume messages from the queue and process them independently.
+
+### Benefits
+
+* Better scalability
+* Reduced load on application servers
+* Reliable message processing
+* Fault tolerance
+* Easier horizontal scaling
+
+### Failure Handling
+
+If a worker fails while processing a notification, the message remains in the queue and can be retried.
+
+Dead-letter queues can be used for messages that repeatedly fail.
+
+### Batch Processing
+
+Notifications can be processed in batches to improve throughput and reduce system overhead.
+
+### Monitoring
+
+The system should monitor:
+
+* Queue length
+* Failed jobs
+* Processing latency
+* Worker health
+
+### Conclusion
+
+Using a queue-based architecture improves reliability and allows the platform to handle large-scale notification delivery efficiently.
