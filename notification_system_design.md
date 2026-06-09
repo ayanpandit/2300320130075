@@ -490,3 +490,111 @@ Read-heavy operations can be served through database replicas while writes conti
 ## Expected Outcome
 
 Using indexing, optimized queries, and pagination, the platform can efficiently serve notification data even when handling millions of records and a large number of concurrent users.
+# Stage 4
+
+## Caching Strategy
+
+As the number of users and notifications grows, repeatedly fetching the same data from the database can increase response times and database load.
+
+To improve performance, a caching layer can be introduced between the application server and the database.
+
+---
+
+## What Should Be Cached
+
+### Unread Notification Count
+
+Unread counts are frequently displayed in dashboards and notification badges.
+
+Example:
+
+```text
+12 unread notifications
+```
+
+Instead of calculating this value from the database on every request, it can be stored in cache.
+
+---
+
+### Recently Accessed Notifications
+
+Users often refresh the notification page multiple times within a short period.
+
+Caching recently accessed notifications reduces unnecessary database queries.
+
+---
+
+### Notification Metadata
+
+Frequently used notification information such as:
+
+* Notification type
+* Notification title
+* Notification priority
+
+can be cached to reduce lookup time.
+
+---
+
+## Cache Technology
+
+Redis is a suitable choice because:
+
+* Very fast read and write operations
+* Supports key-value storage
+* Widely used in production systems
+* Easy integration with Node.js applications
+
+---
+
+## Cache Flow
+
+```text
+Client Request
+      |
+      v
+Application Server
+      |
+      v
+Check Redis Cache
+      |
+  +---+---+
+  |       |
+ Hit     Miss
+  |       |
+Return   Query Database
+Data      |
+           v
+      Store Result in Cache
+           |
+           v
+      Return Response
+```
+
+---
+
+## Cache Invalidation
+
+Cache entries should be updated or removed whenever:
+
+* A new notification is created
+* A notification is marked as read
+* A notification is deleted
+
+This ensures that users always see the latest information.
+
+---
+
+## Benefits
+
+1. Faster response times.
+2. Reduced database load.
+3. Improved scalability.
+4. Better user experience during peak traffic.
+5. More efficient handling of frequently accessed data.
+
+---
+
+## Conclusion
+
+Using Redis for caching notification-related data can significantly improve application performance while reducing pressure on the primary database.
